@@ -34,7 +34,7 @@ A.create(
             MainFrame.Parent = ScreenGui
             MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
             MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0) -- Ortada başlat
-            MainFrame.Size = UDim2.new(0, 490, 0, 340)
+            MainFrame.Size = UDim2.new(0, 350, 0, 200)
             MainFrame.BorderSizePixel = 0
             MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
             MainFrame.Visible = true -- GUI görünmez olma sorununu çözer
