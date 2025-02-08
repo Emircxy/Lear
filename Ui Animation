@@ -121,6 +121,8 @@ function promptRet.create(title, description, primary, secondary, callback)
 	-- **Kırmızı renk ayarı**
 	prompt.Policy.Actions.Primary.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Kırmızı renk
 	prompt.Policy.Actions.Primary.Title.TextColor3 = Color3.fromRGB(255, 255, 255) -- Yazı rengini beyaz yap
+        prompt.Policy.Actions.Primary.Shadow.ImageColor3 = Color3.fromRGB(139, 0, 0) -- Koyu kırmızı
+
 	
 	-- Handle the button clicks and trigger the callback
 	prompt.Policy.Actions.Primary.Interact.MouseButton1Click:Connect(function()
