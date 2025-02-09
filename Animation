@@ -1,1 +1,2 @@
-game.Players.LocalPlayer:Kick("It is closed for today due to some errors, but it will be opened tomorrow!!")
+local player = game.Players.LocalPlayer
+player:Kick("It is closed for today due to some errors, but it will be opened tomorrow!!")
