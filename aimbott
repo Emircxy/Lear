@@ -633,7 +633,6 @@ local script = G2L["18"];
 	local fov = 100 -- Çemberin boyutu
 	local isActive = false -- Özellik başlangıçta kapalı
 	local RunService = game:GetService("RunService")
-	local UserInputService = game:GetService("UserInputService")
 	local Players = game:GetService("Players")
 	local Cam = game.Workspace.CurrentCamera
 	local LocalPlayer = Players.LocalPlayer
@@ -650,39 +649,37 @@ local script = G2L["18"];
 	-- ESP için veri yapısı
 	local ESP = {
 		Drawings = {},
-		TeamColors = {
-			Escapee = Color3.fromRGB(255, 50, 50),
-			-- Diğer takımlar için renkler ekleyebilirsiniz
-		},
 		BoxSettings = {
 			Thickness = 1,
-			Filled = false
+			Filled = false,
+			Color = Color3.fromRGB(255, 50, 50) -- Sadece kırmızı renk
 		},
 		TextSettings = {
 			Size = 13,
 			Center = true,
-			Outline = true
+			Outline = true,
+			Color = Color3.fromRGB(255, 255, 255) -- Beyaz text
 		}
 	}
 	
 	-- ESP çizimlerini temizle
 	local function clearESP()
-		for _, drawing in pairs(ESP.Drawings) do
-			for _, part in pairs(drawing) do
-				if part then
-					part:Remove()
-				end
-			end
+		for _, drawings in pairs(ESP.Drawings) do
+			if drawings.Box then drawings.Box:Remove() end
+			if drawings.Name then drawings.Name:Remove() end
+			if drawings.Distance then drawings.Distance:Remove() end
 		end
 		ESP.Drawings = {}
 	end
 	
-	-- Oyuncu için ESP oluştur
+	-- Sadece Escapee takımı için ESP oluştur
 	local function createESP(player)
-		if ESP.Drawings[player] then return end
+		-- Escapee değilse veya zaten ESP'si varsa işlem yapma
+		if not player.Team or player.Team.Name ~= "Escapee" or ESP.Drawings[player] then 
+			return 
+		end
 	
 		local character = player.Character or player.CharacterAdded:Wait()
-		local teamColor = ESP.TeamColors[player.Team.Name] or Color3.fromRGB(255, 255, 255)
 	
 		ESP.Drawings[player] = {
 			Box = Drawing.new("Square"),
@@ -694,13 +691,13 @@ local script = G2L["18"];
 	
 		-- Kutu ayarları
 		drawings.Box.Visible = false
-		drawings.Box.Color = teamColor
+		drawings.Box.Color = ESP.BoxSettings.Color
 		drawings.Box.Thickness = ESP.BoxSettings.Thickness
 		drawings.Box.Filled = ESP.BoxSettings.Filled
 	
 		-- İsim ayarları
 		drawings.Name.Visible = false
-		drawings.Name.Color = teamColor
+		drawings.Name.Color = ESP.TextSettings.Color
 		drawings.Name.Size = ESP.TextSettings.Size
 		drawings.Name.Center = ESP.TextSettings.Center
 		drawings.Name.Outline = ESP.TextSettings.Outline
@@ -708,29 +705,30 @@ local script = G2L["18"];
 	
 		-- Mesafe ayarları
 		drawings.Distance.Visible = false
-		drawings.Distance.Color = teamColor
+		drawings.Distance.Color = ESP.TextSettings.Color
 		drawings.Distance.Size = ESP.TextSettings.Size
 		drawings.Distance.Center = ESP.TextSettings.Center
 		drawings.Distance.Outline = ESP.TextSettings.Outline
 	end
 	
-	-- ESP güncelle
+	-- ESP güncelle (sadece Escapee'ler için)
 	local function updateESP()
 		for player, drawings in pairs(ESP.Drawings) do
-			if player ~= LocalPlayer and player.Team and player.Character then
+			-- Sadece Escapee takımındaki ve karakteri olan oyuncuları işle
+			if player.Team and player.Team.Name == "Escapee" and player.Character then
 				local character = player.Character
 				local head = character:FindFirstChild("Head")
-				local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+				local rootPart = character:FindFirstChild("HumanoidRootPart")
 	
-				if head and humanoidRootPart then
+				if head and rootPart then
 					local headPos, headOnScreen = Cam:WorldToViewportPoint(head.Position)
-					local rootPos, rootOnScreen = Cam:WorldToViewportPoint(humanoidRootPart.Position)
+					local rootPos, rootOnScreen = Cam:WorldToViewportPoint(rootPart.Position)
 	
-					if headOnScreen or rootOnScreen then
+					if headOnScreen then
 						-- Kutu boyutlarını hesapla
 						local size = (headPos - rootPos).Magnitude * 2
 						local width = size / 2
-						local height = size * 1.5
+						local height = size * 1.8
 	
 						-- Kutu çiz
 						drawings.Box.Size = Vector2.new(width, height)
@@ -742,8 +740,8 @@ local script = G2L["18"];
 						drawings.Name.Visible = isActive
 	
 						-- Mesafe çiz
-						local distance = (humanoidRootPart.Position - Cam.CFrame.Position).Magnitude
-						drawings.Distance.Text = string.format("%.1f studs", distance)
+						local distance = (rootPart.Position - Cam.CFrame.Position).Magnitude
+						drawings.Distance.Text = string.format("[%d studs]", distance)
 						drawings.Distance.Position = Vector2.new(rootPos.X, rootPos.Y + height/2 + 5)
 						drawings.Distance.Visible = isActive
 					else
@@ -753,36 +751,44 @@ local script = G2L["18"];
 					end
 				end
 			else
-				drawings.Box.Visible = false
-				drawings.Name.Visible = false
-				drawings.Distance.Visible = false
+				-- Escapee değilse veya karakteri yoksa ESP'yi gizle
+				if drawings then
+					drawings.Box.Visible = false
+					drawings.Name.Visible = false
+					drawings.Distance.Visible = false
+				end
 			end
 		end
 	end
 	
-	-- Oyuncuları takip et
+	-- Oyuncu takibi (sadece Escapee'ler için)
 	local function trackPlayers()
+		-- Yeni oyuncu eklendiğinde
 		Players.PlayerAdded:Connect(function(player)
 			player.CharacterAdded:Connect(function(character)
-				createESP(player)
+				if player.Team and player.Team.Name == "Escapee" then
+					createESP(player)
+				end
 			end)
 	
-			if player.Character then
+			if player.Character and player.Team and player.Team.Name == "Escapee" then
 				createESP(player)
 			end
 		end)
 	
+		-- Oyuncu çıktığında
 		Players.PlayerRemoving:Connect(function(player)
 			if ESP.Drawings[player] then
-				for _, drawing in pairs(ESP.Drawings[player]) do
-					drawing:Remove()
-				end
+				if ESP.Drawings[player].Box then ESP.Drawings[player].Box:Remove() end
+				if ESP.Drawings[player].Name then ESP.Drawings[player].Name:Remove() end
+				if ESP.Drawings[player].Distance then ESP.Drawings[player].Distance:Remove() end
 				ESP.Drawings[player] = nil
 			end
 		end)
 	
+		-- Mevcut oyuncuları kontrol et
 		for _, player in ipairs(Players:GetPlayers()) do
-			if player ~= LocalPlayer then
+			if player ~= LocalPlayer and player.Team and player.Team.Name == "Escapee" then
 				player.CharacterAdded:Connect(function(character)
 					createESP(player)
 				end)
@@ -799,38 +805,43 @@ local script = G2L["18"];
 		FOVring.Position = Cam.ViewportSize / 2
 	end
 	
-	-- En yakın oyuncuya bakış
+	-- En yakın Escapee'ye bakış
 	local function lookAt(target)
 		local lookVector = (target - Cam.CFrame.Position).unit
 		local newCFrame = CFrame.new(Cam.CFrame.Position, Cam.CFrame.Position + lookVector)
 		Cam.CFrame = newCFrame
 	end
 	
-	-- FOV içindeki en yakın görünən Escapee oyuncusunu bul
-	local function getClosestEnemyInFOV(trg_part)
+	-- FOV içindeki en yakın Escapee'yi bul
+	local function getClosestEnemyInFOV()
 		local nearest = nil
-		local last = math.huge
-		local playerMousePos = Cam.ViewportSize / 2
+		local lastDistance = math.huge
+		local screenCenter = Cam.ViewportSize / 2
 	
 		for _, player in ipairs(Players:GetPlayers()) do
-			if player ~= LocalPlayer and player.Team and player.Team.Name == "Escapee" then
-				local character = player.Character
-				local part = character and character:FindFirstChild(trg_part)
-				if part then
-					local ePos, onScreen = Cam:WorldToViewportPoint(part.Position)
-					local distance = (Vector2.new(ePos.X, ePos.Y) - playerMousePos).Magnitude
+			if player ~= LocalPlayer and player.Team and player.Team.Name == "Escapee" and player.Character then
+				local head = player.Character:FindFirstChild("Head")
+				if head then
+					local pos, onScreen = Cam:WorldToViewportPoint(head.Position)
+					if onScreen then
+						local distance = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
 	
-					if onScreen and distance < fov and distance < last then
-						-- Raycast (divar arxasındadırmı yoxlaması)
-						local rayParams = RaycastParams.new()
-						rayParams.FilterDescendantsInstances = {LocalPlayer.Character, workspace.Terrain}
-						rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+						if distance < fov and distance < lastDistance then
+							-- Duvar arkasında mı kontrolü
+							local rayParams = RaycastParams.new()
+							rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
+							rayParams.FilterType = Enum.RaycastFilterType.Blacklist
 	
-						local result = workspace:Raycast(Cam.CFrame.Position, (part.Position - Cam.CFrame.Position).Unit * 500, rayParams)
+							local raycastResult = workspace:Raycast(
+								Cam.CFrame.Position,
+								(head.Position - Cam.CFrame.Position).Unit * 1000,
+								rayParams
+							)
 	
-						if result and result.Instance:IsDescendantOf(character) then
-							nearest = player
-							last = distance
+							if raycastResult and raycastResult.Instance:IsDescendantOf(player.Character) then
+								nearest = player
+								lastDistance = distance
+							end
 						end
 					end
 				end
@@ -840,32 +851,34 @@ local script = G2L["18"];
 		return nearest
 	end
 	
-	-- Özelliği etkinleştirme
+	-- Özelliği aç
 	local function enableFeature()
 		isActive = true
 		FOVring.Visible = true
-		trackPlayers() -- Oyuncuları takip etmeye başla
+		trackPlayers() -- Oyuncuları takip et
 	
 		RunService:BindToRenderStep("FOVUpdate", Enum.RenderPriority.Camera.Value, function()
 			if not isActive then return end
+	
 			updateDrawings()
-			updateESP() -- ESP'yi güncelle
-			local closest = getClosestEnemyInFOV("Head")
+			updateESP()
+	
+			local closest = getClosestEnemyInFOV()
 			if closest and closest.Character and closest.Character:FindFirstChild("Head") then
 				lookAt(closest.Character.Head.Position)
 			end
 		end)
 	end
 	
-	-- Özelliği devre dışı bırakma
+	-- Özelliği kapat
 	local function disableFeature()
 		isActive = false
 		FOVring.Visible = false
-		clearESP() -- ESP çizimlerini temizle
+		clearESP()
 		RunService:UnbindFromRenderStep("FOVUpdate")
 	end
 	
-	-- Butona tıklanıldığında toggle işlevi
+	-- Buton tıklama
 	script.Parent.MouseButton1Click:Connect(function()
 		if isActive then
 			disableFeature()
