@@ -637,17 +637,14 @@ local script = G2L["18"];
 	local Cam = workspace.CurrentCamera
 	local LocalPlayer = Players.LocalPlayer
 	
-	-- ESP Ayarları
+	-- Ayarlar
 	local espEnabled = false
+	local aimbotEnabled = false
 	local espColor = Color3.fromRGB(255, 50, 50)
+	local fovSize = 100
+	local smoothness = 0.7
 	
-	-- FOV Ayarları
-	local fovEnabled = false
-	local fovSize = 80
-	local fovColor = Color3.fromRGB(255, 0, 0)
-	local FOVring = Drawing.new("Circle")
-	
-	-- ESP Fonksiyonları
+	-- ESP için
 	local function createHighlight(character)
 		if not character:FindFirstChild("ESP_Highlight") then
 			local highlight = Instance.new("Highlight")
@@ -679,7 +676,7 @@ local script = G2L["18"];
 				end
 	
 				player.CharacterAdded:Connect(function(character)
-					if espEnabled and player.Team.Name == "Escapee" then
+					if espEnabled then
 						createHighlight(character)
 					end
 				end)
@@ -687,17 +684,7 @@ local script = G2L["18"];
 		end
 	end
 	
-	-- FOV Fonksiyonları
-	local function setupFOV()
-		FOVring.Visible = fovEnabled
-		FOVring.Radius = fovSize
-		FOVring.Position = Cam.ViewportSize / 2
-		FOVring.Color = fovColor
-		FOVring.Filled = false
-		FOVring.Thickness = 1
-		FOVring.Transparency = 1
-	end
-	
+	-- Aimbot için
 	local function getClosestPlayer()
 		local closestPlayer = nil
 		local shortestDistance = math.huge
@@ -723,48 +710,47 @@ local script = G2L["18"];
 	end
 	
 	local function aimAtClosest()
-		if not fovEnabled then return end
+		if not aimbotEnabled then return end
 	
 		local closest = getClosestPlayer()
 		if closest and closest.Character then
 			local head = closest.Character:FindFirstChild("Head")
 			if head then
 				local lookAt = CFrame.new(Cam.CFrame.Position, head.Position)
-				Cam.CFrame = Cam.CFrame:Lerp(lookAt, 0.7)
+				Cam.CFrame = Cam.CFrame:Lerp(lookAt, smoothness)
 			end
 		end
 	end
 	
-	-- Ana Kontroller
+	-- Kontroller
 	local function toggleESP()
 		espEnabled = not espEnabled
-		button.BackgroundColor3 = espEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
 		updateESP()
 	end
 	
-	local function toggleFOV()
-		fovEnabled = not fovEnabled
-		FOVring.Visible = fovEnabled
+	local function toggleAimbot()
+		aimbotEnabled = not aimbotEnabled
 	end
 	
-	-- Başlangıç Ayarları
-	setupFOV()
+	-- Buton kontrolü
+	button.MouseButton1Click:Connect(function()
+		if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+			toggleAimbot()
+		else
+			toggleESP()
+		end
+	end)
 	
-	-- Olay Dinleyicileri
-	button.MouseButton1Click:Connect(toggleESP)
+	-- Oyun içi kontrol
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
-		if not gameProcessed and input.UserInputType == Enum.UserInputType.MouseButton2 then
-			toggleFOV()
+		if not gameProcessed then
+			if input.KeyCode == Enum.KeyCode.X then
+				toggleAimbot()
+			end
 		end
 	end)
 	
-	RunService.RenderStepped:Connect(function()
-		if fovEnabled then
-			FOVring.Position = UserInputService:GetMouseLocation()
-			aimAtClosest()
-		end
-	end)
-	
+	-- Oyuncu takibi
 	Players.PlayerAdded:Connect(function(player)
 		player.CharacterAdded:Connect(function(character)
 			if espEnabled and player.Team and player.Team.Name == "Escapee" then
@@ -772,6 +758,9 @@ local script = G2L["18"];
 			end
 		end)
 	end)
+	
+	-- Sürekli güncelleme
+	RunService.RenderStepped:Connect(aimAtClosest)
 	
 	-- Başlangıçta ESP'yi güncelle
 	updateESP()
