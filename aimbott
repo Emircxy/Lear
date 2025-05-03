@@ -372,106 +372,259 @@ local script = G2L["c"];
 	local button = script.Parent -- Bu toggle buton
 	local espButton = script.Parent.Parent:WaitForChild("Esp") -- ESP butonuna erişim
 	local Players = game:GetService("Players")
+	local RunService = game:GetService("RunService")
+	local UserInputService = game:GetService("UserInputService")
+	local LocalPlayer = Players.LocalPlayer
 	local isActive = false
 	
-	local function createHighlight(target, color)
-		if not target:FindFirstChild("TeamHighlight") then
+	-- Ayarlar
+	local settings = {
+		showHealth = true,
+		showDistance = true,
+		showName = true,
+		showTeam = true,
+		maxDistance = 1000, -- Max görüntülenecek mesafe
+		refreshRate = 0.1, -- Güncelleme hızı (saniye)
+		healthBarLength = 50, -- Can barı uzunluğu
+		healthBarThickness = 3, -- Can barı kalınlığı
+		textSize = 14, -- Yazı boyutu
+		textOffset = Vector2.new(0, -40) -- Yazı pozisyon offseti
+	}
+	
+	-- ESP nesnelerini saklamak için
+	local espCache = {}
+	
+	local function createESP(targetPlayer)
+		if espCache[targetPlayer] then return end -- Zaten varsa tekrar oluşturma
+	
+		local espData = {
+			highlight = nil,
+			healthLabel = nil,
+			distanceLabel = nil,
+			nameLabel = nil,
+			teamLabel = nil,
+			connections = {}
+		}
+	
+		espCache[targetPlayer] = espData
+	
+		local function updateCharacter(character)
+			-- Önceki ESP nesnelerini temizle
+			if espData.highlight then espData.highlight:Destroy() end
+			if espData.healthLabel then espData.healthLabel:Destroy() end
+			if espData.distanceLabel then espData.distanceLabel:Destroy() end
+			if espData.nameLabel then espData.nameLabel:Destroy() end
+			if espData.teamLabel then espData.teamLabel:Destroy() end
+	
+			-- Bağlantıları temizle
+			for _, conn in ipairs(espData.connections) do
+				conn:Disconnect()
+			end
+			espData.connections = {}
+	
+			if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+	
+			local humanoid = character:FindFirstChildOfClass("Humanoid")
+			if not humanoid then return end
+	
+			-- Highlight oluştur
 			local highlight = Instance.new("Highlight")
-			highlight.Name = "TeamHighlight"
-			highlight.Parent = target
-			highlight.FillTransparency = 0.6
-			highlight.OutlineTransparency = 0.6
-			highlight.FillColor = color
-			highlight.OutlineColor = color
-		end
-	end
+			highlight.Name = "PlayerHighlight"
+			highlight.Parent = character
+			highlight.FillTransparency = 0.7
+			highlight.OutlineTransparency = 0
+			highlight.FillColor = targetPlayer.TeamColor.Color
+			highlight.OutlineColor = Color3.new(1, 1, 1)
+			highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 	
-	local function createTextLabel(target, text)
-		local label = Instance.new("BillboardGui")
-		label.Adornee = target
-		label.Parent = target
-		label.Size = UDim2.new(0, 200, 0, 50)
-		label.StudsOffset = Vector3.new(0, 2, 0)
+			-- BillboardGui'ler oluştur
+			local function createLabel(text, color, positionOffset)
+				local billboard = Instance.new("BillboardGui")
+				billboard.Name = "ESPLabel"
+				billboard.Adornee = character.Head or character.HumanoidRootPart
+				billboard.Size = UDim2.new(0, 200, 0, 50)
+				billboard.StudsOffset = positionOffset or Vector3.new(0, 0, 0)
+				billboard.AlwaysOnTop = true
+				billboard.MaxDistance = settings.maxDistance
+				billboard.Parent = character
 	
-		local textLabel = Instance.new("TextLabel")
-		textLabel.Parent = label
-		textLabel.Text = text
-		textLabel.TextSize = 14
-		textLabel.BackgroundTransparency = 1
-		textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-		textLabel.TextStrokeTransparency = 0.8
-	end
+				local label = Instance.new("TextLabel")
+				label.Name = "Label"
+				label.Size = UDim2.new(1, 0, 0, settings.textSize)
+				label.Position = UDim2.new(0.5, 0, 0, 0)
+				label.AnchorPoint = Vector2.new(0.5, 0)
+				label.BackgroundTransparency = 1
+				label.Text = text
+				label.TextColor3 = color or Color3.new(1, 1, 1)
+				label.TextSize = settings.textSize
+				label.TextStrokeTransparency = 0.5
+				label.TextStrokeColor3 = Color3.new(0, 0, 0)
+				label.Font = Enum.Font.GothamBold
+				label.Parent = billboard
 	
-	local function updateESP()
-		for _, player in ipairs(Players:GetPlayers()) do
-			if player.Team and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-				local distance = (player.Character.HumanoidRootPart.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-				local health = player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health or 0
-				local infoText = "HP: " .. math.floor(health) .. " | Distance: " .. math.floor(distance) .. "m"
-	
-				-- Can ve mesafe bilgisini ekle
-				createTextLabel(player.Character.HumanoidRootPart, infoText)
-	
-				local teamColor = player.TeamColor and player.TeamColor.Color or Color3.fromRGB(255, 255, 255)
-				createHighlight(player.Character, teamColor)
+				return label
 			end
 	
-			-- Yeni karakterler için ESP'yi ekle
-			player.CharacterAdded:Connect(function(character)
-				if character:FindFirstChild("HumanoidRootPart") then
-					local distance = (character.HumanoidRootPart.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-					local health = character:FindFirstChild("Humanoid") and character.Humanoid.Health or 0
-					local infoText = "HP: " .. math.floor(health) .. " | Distance: " .. math.floor(distance) .. "m"
+			-- Can barı oluştur
+			if settings.showHealth then
+				local healthBillboard = Instance.new("BillboardGui")
+				healthBillboard.Name = "HealthBar"
+				healthBillboard.Adornee = character.Head or character.HumanoidRootPart
+				healthBillboard.Size = UDim2.new(0, settings.healthBarLength, 0, settings.healthBarThickness + 4)
+				healthBillboard.StudsOffset = Vector3.new(settings.textOffset.X, settings.textOffset.Y - 20, 0)
+				healthBillboard.AlwaysOnTop = true
+				healthBillboard.MaxDistance = settings.maxDistance
+				healthBillboard.Parent = character
 	
-					-- Can ve mesafe bilgisini ekle
-					createTextLabel(character.HumanoidRootPart, infoText)
+				local healthBackground = Instance.new("Frame")
+				healthBackground.Name = "Background"
+				healthBackground.Size = UDim2.new(1, 0, 1, 0)
+				healthBackground.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+				healthBackground.BorderSizePixel = 0
+				healthBackground.Parent = healthBillboard
 	
-					local teamColor = player.TeamColor and player.TeamColor.Color or Color3.fromRGB(255, 255, 255)
-					createHighlight(character, teamColor)
-				end
-			end)
+				local healthBar = Instance.new("Frame")
+				healthBar.Name = "Bar"
+				healthBar.Size = UDim2.new(humanoid.Health / humanoid.MaxHealth, 0, 1, 0)
+				healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+				healthBar.BorderSizePixel = 0
+				healthBar.Parent = healthBackground
+	
+				-- Can değişikliklerini takip et
+				table.insert(espData.connections, humanoid.HealthChanged:Connect(function()
+					local healthPercent = humanoid.Health / humanoid.MaxHealth
+					healthBar.Size = UDim2.new(healthPercent, 0, 1, 0)
+	
+					-- Can durumuna göre renk değiştir
+					if healthPercent > 0.5 then
+						healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Yeşil
+					elseif healthPercent > 0.2 then
+						healthBar.BackgroundColor3 = Color3.fromRGB(255, 255, 0) -- Sarı
+					else
+						healthBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Kırmızı
+					end
+				end))
+	
+				espData.healthLabel = healthBillboard
+			end
+	
+			-- Diğer bilgiler
+			if settings.showName then
+				espData.nameLabel = createLabel(targetPlayer.Name, targetPlayer.TeamColor.Color, 
+					Vector3.new(settings.textOffset.X, settings.textOffset.Y, 0))
+			end
+	
+			if settings.showDistance then
+				espData.distanceLabel = createLabel("", Color3.new(1, 1, 1), 
+					Vector3.new(settings.textOffset.X, settings.textOffset.Y + 15, 0))
+			end
+	
+			if settings.showTeam then
+				espData.teamLabel = createLabel("[ "..targetPlayer.Team.Name.." ]", targetPlayer.TeamColor.Color, 
+					Vector3.new(settings.textOffset.X, settings.textOffset.Y + 30, 0))
+			end
+	
+			espData.highlight = highlight
+			espData.character = character
 		end
+	
+		-- Karakter yüklendiğinde ESP'yi oluştur
+		if targetPlayer.Character then
+			updateCharacter(targetPlayer.Character)
+		end
+	
+		-- Yeni karakterler için ESP'yi ekle
+		table.insert(espData.connections, targetPlayer.CharacterAdded:Connect(updateCharacter))
+	
+		-- Oyuncu çıktığında temizlik yap
+		table.insert(espData.connections, targetPlayer.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				if espData.highlight then espData.highlight:Destroy() end
+				if espData.healthLabel then espData.healthLabel:Destroy() end
+				if espData.distanceLabel then espData.distanceLabel:Destroy() end
+				if espData.nameLabel then espData.nameLabel:Destroy() end
+				if espData.teamLabel then espData.teamLabel:Destroy() end
+				espCache[targetPlayer] = nil
+			end
+		end))
 	end
 	
-	local function addHighlights()
-		for _, player in ipairs(Players:GetPlayers()) do
-			if player.Team and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-				local teamColor = player.TeamColor and player.TeamColor.Color or Color3.fromRGB(255, 255, 255)
-				createHighlight(player.Character, teamColor)
+	local function removeESP(targetPlayer)
+		if not espCache[targetPlayer] then return end
+	
+		local espData = espCache[targetPlayer]
+		if espData.highlight then espData.highlight:Destroy() end
+		if espData.healthLabel then espData.healthLabel:Destroy() end
+		if espData.distanceLabel then espData.distanceLabel:Destroy() end
+		if espData.nameLabel then espData.nameLabel:Destroy() end
+		if espData.teamLabel then espData.teamLabel:Destroy() end
+	
+		-- Bağlantıları kes
+		for _, conn in ipairs(espData.connections) do
+			conn:Disconnect()
+		end
+	
+		espCache[targetPlayer] = nil
+	end
+	
+	local function updateESPs()
+		for player, espData in pairs(espCache) do
+			if espData.distanceLabel and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+				local distance = (LocalPlayer.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
+				espData.distanceLabel.TextLabel.Text = string.format("%.1f studs", distance)
 			end
 		end
 	end
 	
-	local function removeHighlights()
+	local function addAllESPs()
 		for _, player in ipairs(Players:GetPlayers()) do
-			if player.Character then
-				local highlight = player.Character:FindFirstChild("TeamHighlight")
-				if highlight then
-					highlight:Destroy()
-				end
-	
-				-- TextLabel'ı da sil
-				local label = player.Character:FindFirstChild("HumanoidRootPart") and player.Character.HumanoidRootPart:FindFirstChild("BillboardGui")
-				if label then
-					label:Destroy()
-				end
+			if player ~= LocalPlayer then
+				createESP(player)
 			end
 		end
 	end
 	
+	local function removeAllESPs()
+		for player in pairs(espCache) do
+			removeESP(player)
+		end
+	end
+	
+	-- Oyuncu eklendiğinde ESP ekle
+	Players.PlayerAdded:Connect(function(player)
+		if isActive then
+			createESP(player)
+		end
+	end)
+	
+	-- Oyuncu çıktığında ESP'yi kaldır
+	Players.PlayerRemoving:Connect(function(player)
+		removeESP(player)
+	end)
+	
+	-- Ana toggle fonksiyonu
 	button.MouseButton1Click:Connect(function()
 		isActive = not isActive
 	
 		if isActive then
-			addHighlights()
+			addAllESPs()
 			espButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Yeşil
-			updateESP()
+	
+			-- ESP'leri periyodik olarak güncelle
+			RunService:BindToRenderStep("ESPUpdate", Enum.RenderPriority.Last.Value, updateESPs)
 		else
-			removeHighlights()
+			removeAllESPs()
 			espButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40) -- Orijinal gri ton
+			RunService:UnbindFromRenderStep("ESPUpdate")
 		end
 	end)
 	
+	-- Oyun başladığında zaten var olan oyuncular için
+	if isActive then
+		addAllESPs()
+		RunService:BindToRenderStep("ESPUpdate", Enum.RenderPriority.Last.Value, updateESPs)
+		espButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+	end
 end;
 task.spawn(C_c);
 -- StarterGui.Settings.MainFrame.ScrollingFrame.Destroy.LocalScript
