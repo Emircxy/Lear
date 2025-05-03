@@ -69,7 +69,6 @@ G2L["8"]["AspectRatio"] = 0.63103;
 G2L["9"] = Instance.new("ScrollingFrame", G2L["2"]);
 G2L["9"]["Active"] = true;
 G2L["9"]["BorderSizePixel"] = 0;
-G2L["9"]["CanvasPosition"] = Vector2.new(0, 176.86642);
 G2L["9"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
 G2L["9"]["Size"] = UDim2.new(0, 115, 0, 187);
 G2L["9"]["ScrollBarImageColor3"] = Color3.fromRGB(0, 0, 0);
@@ -387,19 +386,59 @@ local script = G2L["c"];
 		end
 	end
 	
+	local function createTextLabel(target, text)
+		local label = Instance.new("BillboardGui")
+		label.Adornee = target
+		label.Parent = target
+		label.Size = UDim2.new(0, 200, 0, 50)
+		label.StudsOffset = Vector3.new(0, 2, 0)
+	
+		local textLabel = Instance.new("TextLabel")
+		textLabel.Parent = label
+		textLabel.Text = text
+		textLabel.TextSize = 14
+		textLabel.BackgroundTransparency = 1
+		textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+		textLabel.TextStrokeTransparency = 0.8
+	end
+	
+	local function updateESP()
+		for _, player in ipairs(Players:GetPlayers()) do
+			if player.Team and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+				local distance = (player.Character.HumanoidRootPart.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+				local health = player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health or 0
+				local infoText = "HP: " .. math.floor(health) .. " | Distance: " .. math.floor(distance) .. "m"
+	
+				-- Can ve mesafe bilgisini ekle
+				createTextLabel(player.Character.HumanoidRootPart, infoText)
+	
+				local teamColor = player.TeamColor and player.TeamColor.Color or Color3.fromRGB(255, 255, 255)
+				createHighlight(player.Character, teamColor)
+			end
+	
+			-- Yeni karakterler için ESP'yi ekle
+			player.CharacterAdded:Connect(function(character)
+				if character:FindFirstChild("HumanoidRootPart") then
+					local distance = (character.HumanoidRootPart.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+					local health = character:FindFirstChild("Humanoid") and character.Humanoid.Health or 0
+					local infoText = "HP: " .. math.floor(health) .. " | Distance: " .. math.floor(distance) .. "m"
+	
+					-- Can ve mesafe bilgisini ekle
+					createTextLabel(character.HumanoidRootPart, infoText)
+	
+					local teamColor = player.TeamColor and player.TeamColor.Color or Color3.fromRGB(255, 255, 255)
+					createHighlight(character, teamColor)
+				end
+			end)
+		end
+	end
+	
 	local function addHighlights()
 		for _, player in ipairs(Players:GetPlayers()) do
 			if player.Team and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
 				local teamColor = player.TeamColor and player.TeamColor.Color or Color3.fromRGB(255, 255, 255)
 				createHighlight(player.Character, teamColor)
 			end
-			-- Yeni karakterler için ESP'yi ekle
-			player.CharacterAdded:Connect(function(character)
-				if character:FindFirstChild("HumanoidRootPart") then
-					local teamColor = player.TeamColor and player.TeamColor.Color or Color3.fromRGB(255, 255, 255)
-					createHighlight(character, teamColor)
-				end
-			end)
 		end
 	end
 	
@@ -409,6 +448,12 @@ local script = G2L["c"];
 				local highlight = player.Character:FindFirstChild("TeamHighlight")
 				if highlight then
 					highlight:Destroy()
+				end
+	
+				-- TextLabel'ı da sil
+				local label = player.Character:FindFirstChild("HumanoidRootPart") and player.Character.HumanoidRootPart:FindFirstChild("BillboardGui")
+				if label then
+					label:Destroy()
 				end
 			end
 		end
@@ -420,6 +465,7 @@ local script = G2L["c"];
 		if isActive then
 			addHighlights()
 			espButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Yeşil
+			updateESP()
 		else
 			removeHighlights()
 			espButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40) -- Orijinal gri ton
@@ -722,60 +768,6 @@ local script = G2L["18"];
 			disableFeature()
 		else
 			enableFeature()
-		end
-	end)
-	
-	local espButton = script.Parent.Parent:WaitForChild("Esp") -- ESP butonuna erişim
-	local isESPActive = false
-	
-	local function createHighlight(target, color)
-		if not target:FindFirstChild("TeamHighlight") then
-			local highlight = Instance.new("Highlight")
-			highlight.Name = "TeamHighlight"
-			highlight.Parent = target
-			highlight.FillTransparency = 0.6
-			highlight.OutlineTransparency = 0.6
-			highlight.FillColor = color
-			highlight.OutlineColor = color
-		end
-	end
-	
-	local function addHighlights()
-		for _, player in ipairs(Players:GetPlayers()) do
-			if player.Team and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-				local teamColor = player.TeamColor and player.TeamColor.Color or Color3.fromRGB(255, 255, 255)
-				createHighlight(player.Character, teamColor)
-			end
-			-- Yeni karakterler için ESP'yi ekle
-			player.CharacterAdded:Connect(function(character)
-				if character:FindFirstChild("HumanoidRootPart") then
-					local teamColor = player.TeamColor and player.TeamColor.Color or Color3.fromRGB(255, 255, 255)
-					createHighlight(character, teamColor)
-				end
-			end)
-		end
-	end
-	
-	local function removeHighlights()
-		for _, player in ipairs(Players:GetPlayers()) do
-			if player.Character then
-				local highlight = player.Character:FindFirstChild("TeamHighlight")
-				if highlight then
-					highlight:Destroy()
-				end
-			end
-		end
-	end
-	
-	espButton.MouseButton1Click:Connect(function()
-		isESPActive = not isESPActive
-	
-		if isESPActive then
-			addHighlights()
-			espButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Yeşil
-		else
-			removeHighlights()
-			espButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40) -- Orijinal gri ton
 		end
 	end)
 	
