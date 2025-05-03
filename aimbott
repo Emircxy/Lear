@@ -69,6 +69,7 @@ G2L["8"]["AspectRatio"] = 0.63103;
 G2L["9"] = Instance.new("ScrollingFrame", G2L["2"]);
 G2L["9"]["Active"] = true;
 G2L["9"]["BorderSizePixel"] = 0;
+G2L["9"]["CanvasPosition"] = Vector2.new(0, 176.86642);
 G2L["9"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
 G2L["9"]["Size"] = UDim2.new(0, 115, 0, 187);
 G2L["9"]["ScrollBarImageColor3"] = Color3.fromRGB(0, 0, 0);
@@ -631,14 +632,14 @@ task.spawn(C_15);
 local function C_18()
 local script = G2L["18"];
 	local fov = 100 -- Çemberin boyutu
-	local isActive = false -- Özellik başlangıçta kapalı
+	local isActive = false
 	local RunService = game:GetService("RunService")
 	local UserInputService = game:GetService("UserInputService")
 	local Players = game:GetService("Players")
 	local Cam = game.Workspace.CurrentCamera
 	local LocalPlayer = Players.LocalPlayer
 	
-	-- FOV çemberi oluştur
+	-- FOV çemberi
 	local FOVring = Drawing.new("Circle")
 	FOVring.Visible = false
 	FOVring.Thickness = 2
@@ -647,19 +648,65 @@ local script = G2L["18"];
 	FOVring.Radius = fov
 	FOVring.Position = Cam.ViewportSize / 2
 	
-	-- Çemberin konumunu güncelle
+	-- ESP qutuları üçün siyahı
+	local escapeeESP = {}
+	
+	-- Escapee komandasının rəngini al
+	local function getEscapeeTeamColor()
+		for _, player in ipairs(Players:GetPlayers()) do
+			if player.Team and player.Team.Name == "Escapee" then
+				return player.Team.TeamColor.Color
+			end
+		end
+		return Color3.fromRGB(255, 255, 255) -- default rəng
+	end
+	
+	-- ESP-ləri yenilə
+	local function updateEscapeeESP()
+		-- Əvvəlki ESP-ləri sil
+		for _, box in ipairs(escapeeESP) do
+			box.Visible = false
+			box:Remove()
+		end
+		escapeeESP = {}
+	
+		local escapeeColor = getEscapeeTeamColor()
+	
+		for _, player in ipairs(Players:GetPlayers()) do
+			if player ~= LocalPlayer and player.Team and player.Team.Name == "Escapee" then
+				local character = player.Character
+				local hrp = character and character:FindFirstChild("HumanoidRootPart")
+				if hrp then
+					local screenPos, onScreen = Cam:WorldToViewportPoint(hrp.Position)
+					if onScreen then
+						local size = Vector2.new(40, 60)
+						local espBox = Drawing.new("Square")
+						espBox.Size = size
+						espBox.Position = Vector2.new(screenPos.X - size.X/2, screenPos.Y - size.Y/2)
+						espBox.Color = escapeeColor
+						espBox.Thickness = 2
+						espBox.Filled = false
+						espBox.Visible = true
+						table.insert(escapeeESP, espBox)
+					end
+				end
+			end
+		end
+	end
+	
+	-- FOV çemberi konumunu yenilə
 	local function updateDrawings()
 		FOVring.Position = Cam.ViewportSize / 2
 	end
 	
-	-- En yakın oyuncuya bakış
+	-- Kamera bir nöqtəyə baxsın
 	local function lookAt(target)
 		local lookVector = (target - Cam.CFrame.Position).unit
 		local newCFrame = CFrame.new(Cam.CFrame.Position, Cam.CFrame.Position + lookVector)
 		Cam.CFrame = newCFrame
 	end
 	
-	-- FOV içindeki en yakın görünən Escapee oyuncusunu bul
+	-- FOV içindəki ən yaxın Escapee-ni tap
 	local function getClosestEnemyInFOV(trg_part)
 		local nearest = nil
 		local last = math.huge
@@ -674,7 +721,6 @@ local script = G2L["18"];
 					local distance = (Vector2.new(ePos.X, ePos.Y) - playerMousePos).Magnitude
 	
 					if onScreen and distance < fov and distance < last then
-						-- Raycast (divar arxasındadırmı yoxlaması)
 						local rayParams = RaycastParams.new()
 						rayParams.FilterDescendantsInstances = {LocalPlayer.Character, workspace.Terrain}
 						rayParams.FilterType = Enum.RaycastFilterType.Blacklist
@@ -693,7 +739,7 @@ local script = G2L["18"];
 		return nearest
 	end
 	
-	-- Özelliği etkinleştirme
+	-- Aktiv et
 	local function enableFeature()
 		isActive = true
 		FOVring.Visible = true
@@ -701,6 +747,7 @@ local script = G2L["18"];
 		RunService:BindToRenderStep("FOVUpdate", Enum.RenderPriority.Camera.Value, function()
 			if not isActive then return end
 			updateDrawings()
+			updateEscapeeESP()
 			local closest = getClosestEnemyInFOV("Head")
 			if closest and closest.Character and closest.Character:FindFirstChild("Head") then
 				lookAt(closest.Character.Head.Position)
@@ -708,14 +755,19 @@ local script = G2L["18"];
 		end)
 	end
 	
-	-- Özelliği devre dışı bırakma
+	-- Deaktiv et
 	local function disableFeature()
 		isActive = false
 		FOVring.Visible = false
 		RunService:UnbindFromRenderStep("FOVUpdate")
+		for _, box in pairs(escapeeESP) do
+			box.Visible = false
+			box:Remove()
+		end
+		escapeeESP = {}
 	end
 	
-	-- Butona tıklanıldığında toggle işlevi
+	-- Butona tıklanıldığında
 	script.Parent.MouseButton1Click:Connect(function()
 		if isActive then
 			disableFeature()
