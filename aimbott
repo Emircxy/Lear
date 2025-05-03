@@ -372,259 +372,59 @@ local script = G2L["c"];
 	local button = script.Parent -- Bu toggle buton
 	local espButton = script.Parent.Parent:WaitForChild("Esp") -- ESP butonuna erişim
 	local Players = game:GetService("Players")
-	local RunService = game:GetService("RunService")
-	local UserInputService = game:GetService("UserInputService")
-	local LocalPlayer = Players.LocalPlayer
 	local isActive = false
 	
-	-- Ayarlar
-	local settings = {
-		showHealth = true,
-		showDistance = true,
-		showName = true,
-		showTeam = true,
-		maxDistance = 1000, -- Max görüntülenecek mesafe
-		refreshRate = 0.1, -- Güncelleme hızı (saniye)
-		healthBarLength = 30, -- Can barı uzunluğu
-		healthBarThickness = 2, -- Can barı kalınlığı
-		textSize = 14, -- Yazı boyutu
-		textOffset = Vector2.new(0, 10) -- Yazı pozisyon offseti
-	}
-	
-	-- ESP nesnelerini saklamak için
-	local espCache = {}
-	
-	local function createESP(targetPlayer)
-		if espCache[targetPlayer] then return end -- Zaten varsa tekrar oluşturma
-	
-		local espData = {
-			highlight = nil,
-			healthLabel = nil,
-			distanceLabel = nil,
-			nameLabel = nil,
-			teamLabel = nil,
-			connections = {}
-		}
-	
-		espCache[targetPlayer] = espData
-	
-		local function updateCharacter(character)
-			-- Önceki ESP nesnelerini temizle
-			if espData.highlight then espData.highlight:Destroy() end
-			if espData.healthLabel then espData.healthLabel:Destroy() end
-			if espData.distanceLabel then espData.distanceLabel:Destroy() end
-			if espData.nameLabel then espData.nameLabel:Destroy() end
-			if espData.teamLabel then espData.teamLabel:Destroy() end
-	
-			-- Bağlantıları temizle
-			for _, conn in ipairs(espData.connections) do
-				conn:Disconnect()
-			end
-			espData.connections = {}
-	
-			if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-	
-			local humanoid = character:FindFirstChildOfClass("Humanoid")
-			if not humanoid then return end
-	
-			-- Highlight oluştur
+	local function createHighlight(target, color)
+		if not target:FindFirstChild("TeamHighlight") then
 			local highlight = Instance.new("Highlight")
-			highlight.Name = "PlayerHighlight"
-			highlight.Parent = character
-			highlight.FillTransparency = 0.7
-			highlight.OutlineTransparency = 0
-			highlight.FillColor = targetPlayer.TeamColor.Color
-			highlight.OutlineColor = Color3.new(1, 1, 1)
-			highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-	
-			-- BillboardGui'ler oluştur
-			local function createLabel(text, color, positionOffset)
-				local billboard = Instance.new("BillboardGui")
-				billboard.Name = "ESPLabel"
-				billboard.Adornee = character.Head or character.HumanoidRootPart
-				billboard.Size = UDim2.new(0, 200, 0, 50)
-				billboard.StudsOffset = positionOffset or Vector3.new(0, 0, 0)
-				billboard.AlwaysOnTop = true
-				billboard.MaxDistance = settings.maxDistance
-				billboard.Parent = character
-	
-				local label = Instance.new("TextLabel")
-				label.Name = "Label"
-				label.Size = UDim2.new(1, 0, 0, settings.textSize)
-				label.Position = UDim2.new(0.5, 0, 0, 0)
-				label.AnchorPoint = Vector2.new(0.5, 0)
-				label.BackgroundTransparency = 1
-				label.Text = text
-				label.TextColor3 = color or Color3.new(1, 1, 1)
-				label.TextSize = settings.textSize
-				label.TextStrokeTransparency = 0.5
-				label.TextStrokeColor3 = Color3.new(0, 0, 0)
-				label.Font = Enum.Font.GothamBold
-				label.Parent = billboard
-	
-				return label
-			end
-	
-			-- Can barı oluştur
-			if settings.showHealth then
-				local healthBillboard = Instance.new("BillboardGui")
-				healthBillboard.Name = "HealthBar"
-				healthBillboard.Adornee = character.Head or character.HumanoidRootPart
-				healthBillboard.Size = UDim2.new(0, settings.healthBarLength, 0, settings.healthBarThickness + 4)
-				healthBillboard.StudsOffset = Vector3.new(settings.textOffset.X, settings.textOffset.Y - 20, 0)
-				healthBillboard.AlwaysOnTop = true
-				healthBillboard.MaxDistance = settings.maxDistance
-				healthBillboard.Parent = character
-	
-				local healthBackground = Instance.new("Frame")
-				healthBackground.Name = "Background"
-				healthBackground.Size = UDim2.new(1, 0, 1, 0)
-				healthBackground.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
-				healthBackground.BorderSizePixel = 0
-				healthBackground.Parent = healthBillboard
-	
-				local healthBar = Instance.new("Frame")
-				healthBar.Name = "Bar"
-				healthBar.Size = UDim2.new(humanoid.Health / humanoid.MaxHealth, 0, 1, 0)
-				healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-				healthBar.BorderSizePixel = 0
-				healthBar.Parent = healthBackground
-	
-				-- Can değişikliklerini takip et
-				table.insert(espData.connections, humanoid.HealthChanged:Connect(function()
-					local healthPercent = humanoid.Health / humanoid.MaxHealth
-					healthBar.Size = UDim2.new(healthPercent, 0, 1, 0)
-	
-					-- Can durumuna göre renk değiştir
-					if healthPercent > 0.5 then
-						healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Yeşil
-					elseif healthPercent > 0.2 then
-						healthBar.BackgroundColor3 = Color3.fromRGB(255, 255, 0) -- Sarı
-					else
-						healthBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Kırmızı
-					end
-				end))
-	
-				espData.healthLabel = healthBillboard
-			end
-	
-			-- Diğer bilgiler
-			if settings.showName then
-				espData.nameLabel = createLabel(targetPlayer.Name, targetPlayer.TeamColor.Color, 
-					Vector3.new(settings.textOffset.X, settings.textOffset.Y, 0))
-			end
-	
-			if settings.showDistance then
-				espData.distanceLabel = createLabel("", Color3.new(1, 1, 1), 
-					Vector3.new(settings.textOffset.X, settings.textOffset.Y + 15, 0))
-			end
-	
-			if settings.showTeam then
-				espData.teamLabel = createLabel("[ "..targetPlayer.Team.Name.." ]", targetPlayer.TeamColor.Color, 
-					Vector3.new(settings.textOffset.X, settings.textOffset.Y + 30, 0))
-			end
-	
-			espData.highlight = highlight
-			espData.character = character
-		end
-	
-		-- Karakter yüklendiğinde ESP'yi oluştur
-		if targetPlayer.Character then
-			updateCharacter(targetPlayer.Character)
-		end
-	
-		-- Yeni karakterler için ESP'yi ekle
-		table.insert(espData.connections, targetPlayer.CharacterAdded:Connect(updateCharacter))
-	
-		-- Oyuncu çıktığında temizlik yap
-		table.insert(espData.connections, targetPlayer.AncestryChanged:Connect(function(_, parent)
-			if not parent then
-				if espData.highlight then espData.highlight:Destroy() end
-				if espData.healthLabel then espData.healthLabel:Destroy() end
-				if espData.distanceLabel then espData.distanceLabel:Destroy() end
-				if espData.nameLabel then espData.nameLabel:Destroy() end
-				if espData.teamLabel then espData.teamLabel:Destroy() end
-				espCache[targetPlayer] = nil
-			end
-		end))
-	end
-	
-	local function removeESP(targetPlayer)
-		if not espCache[targetPlayer] then return end
-	
-		local espData = espCache[targetPlayer]
-		if espData.highlight then espData.highlight:Destroy() end
-		if espData.healthLabel then espData.healthLabel:Destroy() end
-		if espData.distanceLabel then espData.distanceLabel:Destroy() end
-		if espData.nameLabel then espData.nameLabel:Destroy() end
-		if espData.teamLabel then espData.teamLabel:Destroy() end
-	
-		-- Bağlantıları kes
-		for _, conn in ipairs(espData.connections) do
-			conn:Disconnect()
-		end
-	
-		espCache[targetPlayer] = nil
-	end
-	
-	local function updateESPs()
-		for player, espData in pairs(espCache) do
-			if espData.distanceLabel and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-				local distance = (LocalPlayer.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
-				espData.distanceLabel.TextLabel.Text = string.format("%.1f studs", distance)
-			end
+			highlight.Name = "TeamHighlight"
+			highlight.Parent = target
+			highlight.FillTransparency = 0.6
+			highlight.OutlineTransparency = 0.6
+			highlight.FillColor = color
+			highlight.OutlineColor = color
 		end
 	end
 	
-	local function addAllESPs()
+	local function addHighlights()
 		for _, player in ipairs(Players:GetPlayers()) do
-			if player ~= LocalPlayer then
-				createESP(player)
+			if player.Team and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+				local teamColor = player.TeamColor and player.TeamColor.Color or Color3.fromRGB(255, 255, 255)
+				createHighlight(player.Character, teamColor)
+			end
+			-- Yeni karakterler için ESP'yi ekle
+			player.CharacterAdded:Connect(function(character)
+				if character:FindFirstChild("HumanoidRootPart") then
+					local teamColor = player.TeamColor and player.TeamColor.Color or Color3.fromRGB(255, 255, 255)
+					createHighlight(character, teamColor)
+				end
+			end)
+		end
+	end
+	
+	local function removeHighlights()
+		for _, player in ipairs(Players:GetPlayers()) do
+			if player.Character then
+				local highlight = player.Character:FindFirstChild("TeamHighlight")
+				if highlight then
+					highlight:Destroy()
+				end
 			end
 		end
 	end
 	
-	local function removeAllESPs()
-		for player in pairs(espCache) do
-			removeESP(player)
-		end
-	end
-	
-	-- Oyuncu eklendiğinde ESP ekle
-	Players.PlayerAdded:Connect(function(player)
-		if isActive then
-			createESP(player)
-		end
-	end)
-	
-	-- Oyuncu çıktığında ESP'yi kaldır
-	Players.PlayerRemoving:Connect(function(player)
-		removeESP(player)
-	end)
-	
-	-- Ana toggle fonksiyonu
 	button.MouseButton1Click:Connect(function()
 		isActive = not isActive
 	
 		if isActive then
-			addAllESPs()
+			addHighlights()
 			espButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Yeşil
-	
-			-- ESP'leri periyodik olarak güncelle
-			RunService:BindToRenderStep("ESPUpdate", Enum.RenderPriority.Last.Value, updateESPs)
 		else
-			removeAllESPs()
+			removeHighlights()
 			espButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40) -- Orijinal gri ton
-			RunService:UnbindFromRenderStep("ESPUpdate")
 		end
 	end)
 	
-	-- Oyun başladığında zaten var olan oyuncular için
-	if isActive then
-		addAllESPs()
-		RunService:BindToRenderStep("ESPUpdate", Enum.RenderPriority.Last.Value, updateESPs)
-		espButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-	end
 end;
 task.spawn(C_c);
 -- StarterGui.Settings.MainFrame.ScrollingFrame.Destroy.LocalScript
@@ -830,100 +630,151 @@ task.spawn(C_15);
 -- StarterGui.Settings.MainFrame.ScrollingFrame.Escapee.LocalScript
 local function C_18()
 local script = G2L["18"];
-	local fov = 100 -- Çemberin boyutu
-	local isActive = false -- Özellik başlangıçta kapalı
+	local button = script.Parent
+	local Players = game:GetService("Players")
 	local RunService = game:GetService("RunService")
 	local UserInputService = game:GetService("UserInputService")
-	local Players = game:GetService("Players")
-	local Cam = game.Workspace.CurrentCamera
+	local Cam = workspace.CurrentCamera
 	local LocalPlayer = Players.LocalPlayer
 	
-	-- FOV çemberi oluştur
+	-- ESP Ayarları
+	local espEnabled = false
+	local espColor = Color3.fromRGB(255, 50, 50)
+	
+	-- FOV Ayarları
+	local fovEnabled = false
+	local fovSize = 80
+	local fovColor = Color3.fromRGB(255, 0, 0)
 	local FOVring = Drawing.new("Circle")
-	FOVring.Visible = false
-	FOVring.Thickness = 2
-	FOVring.Color = Color3.fromRGB(255, 0, 0)
-	FOVring.Filled = false
-	FOVring.Radius = fov
-	FOVring.Position = Cam.ViewportSize / 2
 	
-	-- Çemberin konumunu güncelle
-	local function updateDrawings()
-		FOVring.Position = Cam.ViewportSize / 2
+	-- ESP Fonksiyonları
+	local function createHighlight(character)
+		if not character:FindFirstChild("ESP_Highlight") then
+			local highlight = Instance.new("Highlight")
+			highlight.Name = "ESP_Highlight"
+			highlight.FillColor = espColor
+			highlight.OutlineColor = espColor
+			highlight.FillTransparency = 0.5
+			highlight.OutlineTransparency = 0
+			highlight.Parent = character
+		end
 	end
 	
-	-- En yakın oyuncuya bakış
-	local function lookAt(target)
-		local lookVector = (target - Cam.CFrame.Position).unit
-		local newCFrame = CFrame.new(Cam.CFrame.Position, Cam.CFrame.Position + lookVector)
-		Cam.CFrame = newCFrame
+	local function removeHighlight(character)
+		local highlight = character:FindFirstChild("ESP_Highlight")
+		if highlight then
+			highlight:Destroy()
+		end
 	end
 	
-	-- FOV içindeki en yakın görünən Escapee oyuncusunu bul
-	local function getClosestEnemyInFOV(trg_part)
-		local nearest = nil
-		local last = math.huge
-		local playerMousePos = Cam.ViewportSize / 2
-	
+	local function updateESP()
 		for _, player in ipairs(Players:GetPlayers()) do
 			if player ~= LocalPlayer and player.Team and player.Team.Name == "Escapee" then
-				local character = player.Character
-				local part = character and character:FindFirstChild(trg_part)
-				if part then
-					local ePos, onScreen = Cam:WorldToViewportPoint(part.Position)
-					local distance = (Vector2.new(ePos.X, ePos.Y) - playerMousePos).Magnitude
+				if player.Character then
+					if espEnabled then
+						createHighlight(player.Character)
+					else
+						removeHighlight(player.Character)
+					end
+				end
 	
-					if onScreen and distance < fov and distance < last then
-						-- Raycast (divar arxasındadırmı yoxlaması)
-						local rayParams = RaycastParams.new()
-						rayParams.FilterDescendantsInstances = {LocalPlayer.Character, workspace.Terrain}
-						rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+				player.CharacterAdded:Connect(function(character)
+					if espEnabled and player.Team.Name == "Escapee" then
+						createHighlight(character)
+					end
+				end)
+			end
+		end
+	end
 	
-						local result = workspace:Raycast(Cam.CFrame.Position, (part.Position - Cam.CFrame.Position).Unit * 500, rayParams)
+	-- FOV Fonksiyonları
+	local function setupFOV()
+		FOVring.Visible = fovEnabled
+		FOVring.Radius = fovSize
+		FOVring.Position = Cam.ViewportSize / 2
+		FOVring.Color = fovColor
+		FOVring.Filled = false
+		FOVring.Thickness = 1
+		FOVring.Transparency = 1
+	end
 	
-						if result and result.Instance:IsDescendantOf(character) then
-							nearest = player
-							last = distance
+	local function getClosestPlayer()
+		local closestPlayer = nil
+		local shortestDistance = math.huge
+		local mousePos = UserInputService:GetMouseLocation()
+	
+		for _, player in ipairs(Players:GetPlayers()) do
+			if player ~= LocalPlayer and player.Team and player.Team.Name == "Escapee" and player.Character then
+				local head = player.Character:FindFirstChild("Head")
+				if head then
+					local headPos, onScreen = Cam:WorldToViewportPoint(head.Position)
+					if onScreen then
+						local distance = (Vector2.new(headPos.X, headPos.Y) - mousePos).Magnitude
+						if distance < fovSize and distance < shortestDistance then
+							closestPlayer = player
+							shortestDistance = distance
 						end
 					end
 				end
 			end
 		end
 	
-		return nearest
+		return closestPlayer
 	end
 	
-	-- Özelliği etkinleştirme
-	local function enableFeature()
-		isActive = true
-		FOVring.Visible = true
+	local function aimAtClosest()
+		if not fovEnabled then return end
 	
-		RunService:BindToRenderStep("FOVUpdate", Enum.RenderPriority.Camera.Value, function()
-			if not isActive then return end
-			updateDrawings()
-			local closest = getClosestEnemyInFOV("Head")
-			if closest and closest.Character and closest.Character:FindFirstChild("Head") then
-				lookAt(closest.Character.Head.Position)
+		local closest = getClosestPlayer()
+		if closest and closest.Character then
+			local head = closest.Character:FindFirstChild("Head")
+			if head then
+				local lookAt = CFrame.new(Cam.CFrame.Position, head.Position)
+				Cam.CFrame = Cam.CFrame:Lerp(lookAt, 0.7)
 			end
-		end)
+		end
 	end
 	
-	-- Özelliği devre dışı bırakma
-	local function disableFeature()
-		isActive = false
-		FOVring.Visible = false
-		RunService:UnbindFromRenderStep("FOVUpdate")
+	-- Ana Kontroller
+	local function toggleESP()
+		espEnabled = not espEnabled
+		button.BackgroundColor3 = espEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+		updateESP()
 	end
 	
-	-- Butona tıklanıldığında toggle işlevi
-	script.Parent.MouseButton1Click:Connect(function()
-		if isActive then
-			disableFeature()
-		else
-			enableFeature()
+	local function toggleFOV()
+		fovEnabled = not fovEnabled
+		FOVring.Visible = fovEnabled
+	end
+	
+	-- Başlangıç Ayarları
+	setupFOV()
+	
+	-- Olay Dinleyicileri
+	button.MouseButton1Click:Connect(toggleESP)
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if not gameProcessed and input.UserInputType == Enum.UserInputType.MouseButton2 then
+			toggleFOV()
 		end
 	end)
 	
+	RunService.RenderStepped:Connect(function()
+		if fovEnabled then
+			FOVring.Position = UserInputService:GetMouseLocation()
+			aimAtClosest()
+		end
+	end)
+	
+	Players.PlayerAdded:Connect(function(player)
+		player.CharacterAdded:Connect(function(character)
+			if espEnabled and player.Team and player.Team.Name == "Escapee" then
+				createHighlight(character)
+			end
+		end)
+	end)
+	
+	-- Başlangıçta ESP'yi güncelle
+	updateESP()
 end;
 task.spawn(C_18);
 -- StarterGui.Settings.MainFrame.ScrollingFrame.Police.LocalScript
