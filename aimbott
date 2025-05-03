@@ -385,10 +385,10 @@ local script = G2L["c"];
 		showTeam = true,
 		maxDistance = 1000, -- Max görüntülenecek mesafe
 		refreshRate = 0.1, -- Güncelleme hızı (saniye)
-		healthBarLength = 50, -- Can barı uzunluğu
-		healthBarThickness = 3, -- Can barı kalınlığı
+		healthBarLength = 30, -- Can barı uzunluğu
+		healthBarThickness = 2, -- Can barı kalınlığı
 		textSize = 14, -- Yazı boyutu
-		textOffset = Vector2.new(0, -40) -- Yazı pozisyon offseti
+		textOffset = Vector2.new(0, 10) -- Yazı pozisyon offseti
 	}
 	
 	-- ESP nesnelerini saklamak için
