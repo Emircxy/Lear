@@ -632,14 +632,14 @@ task.spawn(C_15);
 local function C_18()
 local script = G2L["18"];
 	local fov = 100 -- Çemberin boyutu
-	local isActive = false
+	local isActive = false -- Özellik başlangıçta kapalı
 	local RunService = game:GetService("RunService")
 	local UserInputService = game:GetService("UserInputService")
 	local Players = game:GetService("Players")
 	local Cam = game.Workspace.CurrentCamera
 	local LocalPlayer = Players.LocalPlayer
 	
-	-- FOV çemberi
+	-- FOV çemberi oluştur
 	local FOVring = Drawing.new("Circle")
 	FOVring.Visible = false
 	FOVring.Thickness = 2
@@ -648,65 +648,19 @@ local script = G2L["18"];
 	FOVring.Radius = fov
 	FOVring.Position = Cam.ViewportSize / 2
 	
-	-- ESP qutuları üçün siyahı
-	local escapeeESP = {}
-	
-	-- Escapee komandasının rəngini al
-	local function getEscapeeTeamColor()
-		for _, player in ipairs(Players:GetPlayers()) do
-			if player.Team and player.Team.Name == "Escapee" then
-				return player.Team.TeamColor.Color
-			end
-		end
-		return Color3.fromRGB(255, 255, 255) -- default rəng
-	end
-	
-	-- ESP-ləri yenilə
-	local function updateEscapeeESP()
-		-- Əvvəlki ESP-ləri sil
-		for _, box in ipairs(escapeeESP) do
-			box.Visible = false
-			box:Remove()
-		end
-		escapeeESP = {}
-	
-		local escapeeColor = getEscapeeTeamColor()
-	
-		for _, player in ipairs(Players:GetPlayers()) do
-			if player ~= LocalPlayer and player.Team and player.Team.Name == "Escapee" then
-				local character = player.Character
-				local hrp = character and character:FindFirstChild("HumanoidRootPart")
-				if hrp then
-					local screenPos, onScreen = Cam:WorldToViewportPoint(hrp.Position)
-					if onScreen then
-						local size = Vector2.new(40, 60)
-						local espBox = Drawing.new("Square")
-						espBox.Size = size
-						espBox.Position = Vector2.new(screenPos.X - size.X/2, screenPos.Y - size.Y/2)
-						espBox.Color = escapeeColor
-						espBox.Thickness = 2
-						espBox.Filled = false
-						espBox.Visible = true
-						table.insert(escapeeESP, espBox)
-					end
-				end
-			end
-		end
-	end
-	
-	-- FOV çemberi konumunu yenilə
+	-- Çemberin konumunu güncelle
 	local function updateDrawings()
 		FOVring.Position = Cam.ViewportSize / 2
 	end
 	
-	-- Kamera bir nöqtəyə baxsın
+	-- En yakın oyuncuya bakış
 	local function lookAt(target)
 		local lookVector = (target - Cam.CFrame.Position).unit
 		local newCFrame = CFrame.new(Cam.CFrame.Position, Cam.CFrame.Position + lookVector)
 		Cam.CFrame = newCFrame
 	end
 	
-	-- FOV içindəki ən yaxın Escapee-ni tap
+	-- FOV içindeki en yakın görünən Escapee oyuncusunu bul
 	local function getClosestEnemyInFOV(trg_part)
 		local nearest = nil
 		local last = math.huge
@@ -721,6 +675,7 @@ local script = G2L["18"];
 					local distance = (Vector2.new(ePos.X, ePos.Y) - playerMousePos).Magnitude
 	
 					if onScreen and distance < fov and distance < last then
+						-- Raycast (divar arxasındadırmı yoxlaması)
 						local rayParams = RaycastParams.new()
 						rayParams.FilterDescendantsInstances = {LocalPlayer.Character, workspace.Terrain}
 						rayParams.FilterType = Enum.RaycastFilterType.Blacklist
@@ -739,7 +694,7 @@ local script = G2L["18"];
 		return nearest
 	end
 	
-	-- Aktiv et
+	-- Özelliği etkinleştirme
 	local function enableFeature()
 		isActive = true
 		FOVring.Visible = true
@@ -747,7 +702,6 @@ local script = G2L["18"];
 		RunService:BindToRenderStep("FOVUpdate", Enum.RenderPriority.Camera.Value, function()
 			if not isActive then return end
 			updateDrawings()
-			updateEscapeeESP()
 			local closest = getClosestEnemyInFOV("Head")
 			if closest and closest.Character and closest.Character:FindFirstChild("Head") then
 				lookAt(closest.Character.Head.Position)
@@ -755,24 +709,73 @@ local script = G2L["18"];
 		end)
 	end
 	
-	-- Deaktiv et
+	-- Özelliği devre dışı bırakma
 	local function disableFeature()
 		isActive = false
 		FOVring.Visible = false
 		RunService:UnbindFromRenderStep("FOVUpdate")
-		for _, box in pairs(escapeeESP) do
-			box.Visible = false
-			box:Remove()
-		end
-		escapeeESP = {}
 	end
 	
-	-- Butona tıklanıldığında
+	-- Butona tıklanıldığında toggle işlevi
 	script.Parent.MouseButton1Click:Connect(function()
 		if isActive then
 			disableFeature()
 		else
 			enableFeature()
+		end
+	end)
+	
+	local espButton = script.Parent.Parent:WaitForChild("Esp") -- ESP butonuna erişim
+	local isESPActive = false
+	
+	local function createHighlight(target, color)
+		if not target:FindFirstChild("TeamHighlight") then
+			local highlight = Instance.new("Highlight")
+			highlight.Name = "TeamHighlight"
+			highlight.Parent = target
+			highlight.FillTransparency = 0.6
+			highlight.OutlineTransparency = 0.6
+			highlight.FillColor = color
+			highlight.OutlineColor = color
+		end
+	end
+	
+	local function addHighlights()
+		for _, player in ipairs(Players:GetPlayers()) do
+			if player.Team and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+				local teamColor = player.TeamColor and player.TeamColor.Color or Color3.fromRGB(255, 255, 255)
+				createHighlight(player.Character, teamColor)
+			end
+			-- Yeni karakterler için ESP'yi ekle
+			player.CharacterAdded:Connect(function(character)
+				if character:FindFirstChild("HumanoidRootPart") then
+					local teamColor = player.TeamColor and player.TeamColor.Color or Color3.fromRGB(255, 255, 255)
+					createHighlight(character, teamColor)
+				end
+			end)
+		end
+	end
+	
+	local function removeHighlights()
+		for _, player in ipairs(Players:GetPlayers()) do
+			if player.Character then
+				local highlight = player.Character:FindFirstChild("TeamHighlight")
+				if highlight then
+					highlight:Destroy()
+				end
+			end
+		end
+	end
+	
+	espButton.MouseButton1Click:Connect(function()
+		isESPActive = not isESPActive
+	
+		if isESPActive then
+			addHighlights()
+			espButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Yeşil
+		else
+			removeHighlights()
+			espButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40) -- Orijinal gri ton
 		end
 	end)
 	
